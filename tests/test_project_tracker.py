@@ -25,6 +25,19 @@ class TestProjectTracker(unittest.TestCase):
         self.assertEqual(summary["completed"], 1)
         self.assertIn("FastAPI", summary["skills"])
 
+    def test_storage_removes_project(self):
+        with tempfile.TemporaryDirectory() as directory:
+            storage = ProjectStorage(Path(directory) / "projects.sqlite3")
+            first_id = storage.add_project("Первый проект", "Описание")
+            second_id = storage.add_project("Второй проект", "Описание")
+
+            storage.remove_project(first_id)
+            projects = storage.list_projects()
+
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["id"], second_id)
+        self.assertEqual(projects[0]["title"], "Второй проект")
+
 
 if __name__ == "__main__":
     unittest.main()

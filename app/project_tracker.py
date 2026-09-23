@@ -137,6 +137,10 @@ class ProjectStorage:
                 (datetime.now(timezone.utc).isoformat(), project_id),
             )
 
+    def remove_project(self, project_id: int) -> None:
+        with closing(self._connect()) as connection, connection:
+            connection.execute("DELETE FROM tracked_projects WHERE id = ?", (project_id,))
+
     def start_project(self, project_id: int) -> dict[str, object] | None:
         started_at = datetime.now(timezone.utc).isoformat()
         with closing(self._connect()) as connection, connection:

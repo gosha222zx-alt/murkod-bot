@@ -22,12 +22,16 @@ from weekly_report import build_report
 
 DATA_DIR = Path(os.getenv("MURKOD_DATA_DIR", Path(__file__).parent))
 STORAGE = ProjectStorage(DATA_DIR / "projects.sqlite3")
-BG = "#10151c"
-PANEL = "#18222d"
+BG = "#0d141b"
+PANEL = "#121d29"
+CARD = "#182535"
 TEXT = "#edf2f7"
-MUTED = "#8fa2b5"
-ACCENT = "#72d6b2"
+MUTED = "#8ea0b5"
+ACCENT = "#5ee3b0"
+ACCENT_DARK = "#1b8c69"
 ORANGE = "#f5ae62"
+ENTRY_BG = "#1b2a38"
+BORDER = "#2a3d4f"
 
 
 class DesktopWidget:
@@ -49,14 +53,20 @@ class DesktopWidget:
         style.theme_use("clam")
         style.configure("Widget.TFrame", background=BG)
         style.configure("Panel.TFrame", background=PANEL)
+        style.configure("Card.TFrame", background=CARD)
         style.configure("Widget.TLabel", background=BG, foreground=TEXT, font=("Segoe UI", 10))
         style.configure("Muted.TLabel", background=BG, foreground=MUTED, font=("Segoe UI", 9))
         style.configure("Title.TLabel", background=BG, foreground=TEXT, font=("Segoe UI Semibold", 18))
         style.configure("Panel.TLabel", background=PANEL, foreground=TEXT, font=("Segoe UI", 10))
         style.configure("PanelMuted.TLabel", background=PANEL, foreground=MUTED, font=("Segoe UI", 9))
-        style.configure("Accent.TButton", background=ACCENT, foreground="#102019", padding=(12, 7), font=("Segoe UI Semibold", 9))
-        style.map("Accent.TButton", background=[("active", "#a0ead0")])
-        style.configure("Ghost.TButton", background=PANEL, foreground=TEXT, padding=(8, 5), borderwidth=0)
+        style.configure("Accent.TButton", background=ACCENT, foreground="#081910", padding=(12, 8), borderwidth=0, relief="flat", font=("Segoe UI Semibold", 9))
+        style.map("Accent.TButton", background=[("active", "#82efc0")])
+        style.configure("Ghost.TButton", background=PANEL, foreground=TEXT, padding=(8, 5), borderwidth=0, relief="flat", font=("Segoe UI", 9))
+        style.map("Ghost.TButton", background=[("active", "#223445")])
+        style.configure("Modern.TButton", background=PANEL, foreground=TEXT, padding=(8, 5), borderwidth=0, relief="flat", font=("Segoe UI", 9))
+        style.map("Modern.TButton", background=[("active", "#223445")])
+        style.configure("Modern.TEntry", fieldbackground=ENTRY_BG, foreground=TEXT, background=ENTRY_BG, borderwidth=1, lightcolor=BORDER, darkcolor=BORDER)
+        style.map("Modern.TEntry", fieldbackground=[("focus", ENTRY_BG)], foreground=[("focus", TEXT)])
 
     def _build_ui(self) -> None:
         self.body = ttk.Frame(self.root, style="Widget.TFrame", padding=18)
@@ -74,18 +84,20 @@ class DesktopWidget:
         self.form.pack(fill="x", pady=(0, 14))
         ttk.Label(self.form, text="Новая задача или проект", style="Panel.TLabel").pack(anchor="w")
         self.title_entry = ttk.Entry(self.form, font=("Segoe UI", 10))
+        self.title_entry.configure(style="Modern.TEntry")
         self.title_entry.pack(fill="x", pady=(10, 7))
         self.title_entry.insert(0, "Например: Telegram-бот для заявок")
-        self.description = tk.Text(self.form, height=3, wrap="word", bg="#22303d", fg=TEXT, insertbackground=TEXT, relief="flat", padx=8, pady=7, font=("Segoe UI", 9))
+        self.description = tk.Text(self.form, height=3, wrap="word", bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT, relief="flat", padx=8, pady=7, font=("Segoe UI", 9), borderwidth=1, highlightbackground=BORDER, highlightcolor=BORDER)
         self.description.pack(fill="x", pady=(0, 9))
         self.description.insert("1.0", "Что делаешь, какие технологии используешь и какой результат нужен")
         self.path_entry = ttk.Entry(self.form, font=("Segoe UI", 9))
+        self.path_entry.configure(style="Modern.TEntry")
         self.path_entry.pack(fill="x", pady=(0, 9))
         self.path_entry.insert(0, str(Path.cwd()))
         ttk.Button(self.form, text="Добавить и оценить", style="Accent.TButton", command=self.add_project).pack(anchor="e")
 
         ttk.Label(self.body, text="Последние задачи", style="Widget.TLabel").pack(anchor="w", pady=(0, 7))
-        self.projects = tk.Listbox(self.body, bg=PANEL, fg=TEXT, selectbackground="#2b5d58", selectforeground=TEXT, relief="flat", highlightthickness=0, font=("Segoe UI", 10), activestyle="none")
+        self.projects = tk.Listbox(self.body, bg=PANEL, fg=TEXT, selectbackground="#2f5b4e", selectforeground=TEXT, relief="flat", highlightthickness=0, font=("Segoe UI", 10), activestyle="none", borderwidth=0, selectborderwidth=0)
         self.projects.pack(fill="both", expand=True)
         self.projects.bind("<Double-Button-1>", self.complete_selected)
         footer = ttk.Frame(self.body, style="Widget.TFrame")
@@ -94,6 +106,7 @@ class DesktopWidget:
         ttk.Button(footer, text="GitHub", style="Ghost.TButton", command=self.show_github).pack(side="left")
         ttk.Button(footer, text="Заявки", style="Ghost.TButton", command=self.show_jobs).pack(side="left")
         ttk.Button(footer, text="Отчёт", style="Ghost.TButton", command=self.send_report).pack(side="left")
+        ttk.Button(footer, text="Удалить", style="Ghost.TButton", command=self.remove_selected).pack(side="left")
         ttk.Button(footer, text="Выйти", style="Ghost.TButton", command=self.root.destroy).pack(side="right")
 
     def add_project(self) -> None:
@@ -118,6 +131,22 @@ class DesktopWidget:
             return
         project = STORAGE.list_projects()[selection[0]]
         STORAGE.complete_project(int(project["id"]))
+        self.refresh()
+
+    def remove_selected(self) -> None:
+        selection = self.projects.curselection()
+        if not selection:
+            messagebox.showinfo("Удаление", "Сначала выбери задачу из списка.", parent=self.root)
+            return
+        project = STORAGE.list_projects()[selection[0]]
+        confirmed = messagebox.askyesno(
+            "Удалить задачу",
+            f"Удалить задачу \"{project['title']}\"?",
+            parent=self.root,
+        )
+        if not confirmed:
+            return
+        STORAGE.remove_project(int(project["id"]))
         self.refresh()
 
     def open_selected(self) -> None:
