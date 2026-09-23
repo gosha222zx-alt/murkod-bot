@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+history.json
+conversation_history.json
+build/
+dist/
+*.zip
+*.spec
+voice_*.ogg
+my_first_ project/
+Sanya.py
+telegram_avatar.mp4

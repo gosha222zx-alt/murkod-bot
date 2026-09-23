@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+build/
+dist/
+tests/
+*.spec
+conversation_history.json
+games.sqlite3

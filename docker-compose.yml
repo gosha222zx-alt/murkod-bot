@@ -1,0 +1,15 @@
+services:
+  murkod:
+    build: .
+    container_name: murkod-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MURKOD_DATA_DIR: /app/data
+    volumes:
+      - murkod_data:/app/data
+    command: ["python", "main.py"]
+
+volumes:
+  murkod_data:
