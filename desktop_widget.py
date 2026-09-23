@@ -9,6 +9,7 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 from app.integrations import (
+    JobItem,
     assess_with_ai,
     github_repositories,
     load_job_items,
@@ -141,15 +142,119 @@ class DesktopWidget:
         webbrowser.open(repositories[0]["url"])
         messagebox.showinfo("GitHub", f"Открыт последний репозиторий: {repositories[0]['name']}", parent=self.root)
 
+    @staticmethod
+    def _job_matches_filter(job: JobItem) -> bool:
+        keywords = [keyword.strip().lower() for keyword in os.getenv("JOB_KEYWORDS", "").split(",") if keyword.strip()]
+        if not keywords:
+            return False
+        haystack = f"{job.title} {job.summary}".lower()
+        return any(keyword in haystack for keyword in keywords)
+
     def show_jobs(self) -> None:
         jobs = load_job_items()
         if not jobs:
-            messagebox.showinfo("Заявки", "Добавь RSS/Atom-адреса в JOB_FEEDS в .env.", parent=self.root)
+            messagebox.showinfo("Заявки", "Добавь RSS/Atom-адреса в JOB_FEEDS в .env или проверь JOB_KEYWORDS.", parent=self.root)
             return
-        job = jobs[0]
-        if job.url:
-            webbrowser.open(job.url)
-        messagebox.showinfo("Подходящая заявка", f"{job.title}\n\nИсточник: {job.source}", parent=self.root)
+
+        window = tk.Toplevel(self.root)
+        window.title("Заявки")
+        window.geometry("760x520")
+        window.configure(bg=BG)
+        window.transient(self.root)
+        window.grab_set()
+        window.protocol("WM_DELETE_WINDOW", window.destroy)
+
+        header = ttk.Frame(window, padding=(12, 10, 12, 8), style="Widget.TFrame")
+        header.pack(fill="x")
+        ttk.Label(header, text=f"Найдено: {len(jobs[:10])}", style="Widget.TLabel").pack(side="left")
+        ttk.Button(header, text="Обновить", style="Ghost.TButton", command=lambda: self._refresh_jobs_window(window)).pack(side="right")
+
+        canvas = tk.Canvas(window, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(window, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True, padx=(12, 0), pady=(0, 12))
+        scrollbar.pack(side="right", fill="y", pady=(0, 12))
+
+        jobs_frame = ttk.Frame(canvas, style="Widget.TFrame")
+        canvas.create_window((0, 0), window=jobs_frame, anchor="nw")
+        jobs_frame.bind("<Configure>", lambda event: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        def populate_jobs() -> None:
+            for child in jobs_frame.winfo_children():
+                child.destroy()
+            visible_jobs = jobs[:10]
+            for job in visible_jobs:
+                row = tk.Frame(jobs_frame, bg="#1d2a34", highlightthickness=1, highlightbackground="#2f3d4f", padx=8, pady=8)
+                if self._job_matches_filter(job):
+                    row.configure(bg="#163d33", highlightbackground="#4fe0a4", highlightcolor="#4fe0a4")
+                row.pack(fill="x", pady=4)
+
+                label = tk.Label(
+                    row,
+                    text=f"{job.title}\n{job.source}",
+                    bg=row["bg"],
+                    fg=TEXT,
+                    justify="left",
+                    anchor="w",
+                    wraplength=560,
+                    font=("Segoe UI", 9),
+                )
+                label.pack(side="left", fill="x", expand=True, padx=(0, 12))
+
+                ttk.Button(
+                    row,
+                    text="Открыть",
+                    style="Ghost.TButton",
+                    command=lambda url=job.url: webbrowser.open(url),
+                ).pack(side="right")
+
+        populate_jobs()
+
+    def _refresh_jobs_window(self, window: tk.Toplevel) -> None:
+        jobs = load_job_items()
+        content = window.winfo_children()
+        if not content:
+            return
+        header = content[0]
+        if len(header.winfo_children()) >= 2:
+            label = header.winfo_children()[0]
+            label.configure(text=f"Найдено: {len(jobs[:10])}")
+
+        canvas = window.winfo_children()[-1]
+        jobs_frame = canvas.winfo_children()[0]
+        for child in jobs_frame.winfo_children():
+            child.destroy()
+
+        if not jobs:
+            ttk.Label(jobs_frame, text="Нет заявок по текущим критериям.", style="Muted.TLabel").pack(pady=12)
+            return
+
+        for job in jobs[:10]:
+            row = tk.Frame(jobs_frame, bg="#1d2a34", highlightthickness=1, highlightbackground="#2f3d4f", padx=8, pady=8)
+            if self._job_matches_filter(job):
+                row.configure(bg="#163d33", highlightbackground="#4fe0a4", highlightcolor="#4fe0a4")
+            row.pack(fill="x", pady=4)
+
+            tk.Label(
+                row,
+                text=f"{job.title}\n{job.source}",
+                bg=row["bg"],
+                fg=TEXT,
+                justify="left",
+                anchor="w",
+                wraplength=560,
+                font=("Segoe UI", 9),
+            ).pack(side="left", fill="x", expand=True, padx=(0, 12))
+
+            ttk.Button(
+                row,
+                text="Открыть",
+                style="Ghost.TButton",
+                command=lambda url=job.url: webbrowser.open(url),
+            ).pack(side="right")
+
+        jobs_frame.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
 
     def send_report(self) -> None:
         try:

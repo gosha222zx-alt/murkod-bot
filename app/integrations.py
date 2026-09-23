@@ -101,9 +101,15 @@ def github_repositories() -> list[dict[str, str]]:
         ]
 
 
+def _job_keywords() -> set[str]:
+    raw_keywords = os.getenv("JOB_KEYWORDS", "")
+    return {keyword.strip().lower() for keyword in raw_keywords.split(",") if keyword.strip()}
+
+
 def load_job_items() -> list[JobItem]:
     """Read configured RSS/Atom feeds for manual review only."""
     feed_urls = [url.strip() for url in os.getenv("JOB_FEEDS", "").split(",") if url.strip()]
+    keyword_filters = _job_keywords()
     items: list[JobItem] = []
     for feed_url in feed_urls:
         try:
@@ -125,6 +131,9 @@ def load_job_items() -> list[JobItem]:
                     or entry.findtext("summary")
                     or ""
                 )
+                searchable_text = f"{title} {summary}".lower()
+                if keyword_filters and not any(keyword in searchable_text for keyword in keyword_filters):
+                    continue
                 items.append(
                     JobItem(title.strip(), link.strip(), source, summary.strip())
                 )
