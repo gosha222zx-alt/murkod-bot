@@ -13,3 +13,5 @@ voice_*.ogg
 my_first_ project/
 Sanya.py
 telegram_avatar.mp4
+_archive/
+*.sqlite3
