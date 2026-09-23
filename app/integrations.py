@@ -11,7 +11,12 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from app.project_tracker import ProjectAssessment, assess_project
+
+
+load_dotenv()
 
 
 @dataclass(frozen=True)
@@ -43,8 +48,14 @@ def assess_with_ai(title: str, description: str) -> tuple[ProjectAssessment, str
         response = Groq(api_key=api_key).chat.completions.create(
             model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
             messages=[
-                {"role": "system", "content": "Кратко оцени задачу программиста: тип, навыки, следующий шаг и результат для портфолио. Отвечай по-русски."},
-                {"role": "user", "content": f"Название: {title}\nОписание: {description}"},
+                {
+                    "role": "system",
+                    "content": "Кратко оцени задачу программиста: тип, навыки, следующий шаг и результат для портфолио. Отвечай по-русски.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Название: {title}\nОписание: {description}",
+                },
             ],
         )
         return assessment, response.choices[0].message.content or "AI не вернул пояснение."
@@ -59,7 +70,9 @@ def send_telegram_message(text: str) -> None:
         raise RuntimeError("Задай TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID в .env")
     payload = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
     request = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/sendMessage", data=payload, method="POST"
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=payload,
+        method="POST",
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         if response.status != 200:
@@ -72,11 +85,18 @@ def github_repositories() -> list[dict[str, str]]:
         raise RuntimeError("Задай GITHUB_TOKEN в .env")
     request = urllib.request.Request(
         "https://api.github.com/user/repos?sort=updated&per_page=30",
-        headers={"Accept": "application/vnd.github+json", "Authorization": f"Bearer {token}"},
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+        },
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         return [
-            {"name": item["name"], "url": item["html_url"], "language": item.get("language") or ""}
+            {
+                "name": item["name"],
+                "url": item["html_url"],
+                "language": item.get("language") or "",
+            }
             for item in json.loads(response.read())
         ]
 
@@ -87,16 +107,27 @@ def load_job_items() -> list[JobItem]:
     items: list[JobItem] = []
     for feed_url in feed_urls:
         try:
-            request = urllib.request.Request(feed_url, headers={"User-Agent": "MurkodWidget/1.0"})
+            request = urllib.request.Request(
+                feed_url,
+                headers={"User-Agent": "MurkodWidget/1.0"},
+            )
             with urllib.request.urlopen(request, timeout=10) as response:
                 root = ET.fromstring(response.read())
             source = urllib.parse.urlparse(feed_url).netloc
-            entries = root.findall(".//item") + root.findall(".//{http://www.w3.org/2005/Atom}entry")
+            entries = root.findall(".//item") + root.findall(
+                ".//{http://www.w3.org/2005/Atom}entry"
+            )
             for entry in entries:
                 title = entry.findtext("title") or "Без названия"
                 link = entry.findtext("link") or ""
-                summary = entry.findtext("description") or entry.findtext("summary") or ""
-                items.append(JobItem(title.strip(), link.strip(), source, summary.strip()))
+                summary = (
+                    entry.findtext("description")
+                    or entry.findtext("summary")
+                    or ""
+                )
+                items.append(
+                    JobItem(title.strip(), link.strip(), source, summary.strip())
+                )
         except (OSError, ET.ParseError, ValueError):
             continue
     return items[:30]
